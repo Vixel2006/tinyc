@@ -6,7 +6,7 @@ enum State {
     Identifier,
     Whitespace,
     Symbol,
-    Error
+    Error,
 }
 
 pub struct DFA;
@@ -24,10 +24,17 @@ impl DFA {
         // Handle empty input
         let first_char = match chars.peek() {
             Some(&c) => c,
-            None => return Token { lexeme: "".to_string(), kind: TokenKind::Eof, length: 0, line, column },
+            None => {
+                return Token {
+                    lexeme: "".to_string(),
+                    kind: TokenKind::Eof,
+                    length: 0,
+                    line,
+                    column,
+                };
+            }
         };
 
-        // Determine initial state and consume the first character
         if first_char.is_ascii_alphabetic() {
             current_state = State::Identifier;
         } else if first_char.is_whitespace() {
@@ -38,9 +45,8 @@ impl DFA {
             current_state = State::Error;
         }
 
-        buffer.push(chars.next().unwrap()); // Consume the first character
+        buffer.push(chars.next().unwrap());
 
-        // Continue consuming characters based on the current state
         while let Some(&c) = chars.peek() {
             match current_state {
                 State::Identifier => {
@@ -60,17 +66,12 @@ impl DFA {
                     }
                 }
                 State::Symbol => {
-                    // Symbols are single characters, so we break after the first one.
-                    // The first character was already consumed.
                     break;
                 }
                 State::Error => {
-                    // Unknown characters are single characters, so we break after the first one.
-                    // The first character was already consumed.
                     break;
                 }
                 State::Start => {
-                    // This state should not be reached here.
                     break;
                 }
             }
@@ -81,10 +82,16 @@ impl DFA {
             State::Whitespace => TokenKind::Whitespace,
             State::Symbol => TokenKind::Symbol,
             State::Error => TokenKind::Uknown,
-            State::Start => TokenKind::Uknown, // Fallback, should not happen
+            State::Start => TokenKind::Uknown,
         };
 
         let token_length = buffer.len();
-        Token { lexeme: buffer, kind, length: token_length, line, column }
+        Token {
+            lexeme: buffer,
+            kind,
+            length: token_length,
+            line,
+            column,
+        }
     }
 }

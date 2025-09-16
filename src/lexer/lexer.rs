@@ -6,6 +6,7 @@ pub struct Lexer<'a> {
     pos: usize,
     line: u32,
     col: u32,
+    returned_eof: bool,
 }
 
 impl<'a> Lexer<'a> {
@@ -15,6 +16,7 @@ impl<'a> Lexer<'a> {
             pos: 0,
             line: 1,
             col: 1,
+            returned_eof: false,
         }
     }
 }
@@ -24,13 +26,18 @@ impl<'a> Iterator for Lexer<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.input.len() {
-            return Some(Token::new(
-                TokenKind::Eof,
-                "",
-                self.pos,
-                self.line,
-                self.col,
-            ));
+            if !self.returned_eof {
+                self.returned_eof = true;
+                return Some(Token::new(
+                    TokenKind::Eof,
+                    "",
+                    0,
+                    self.line,
+                    self.col,
+                ));
+            } else {
+                return None;
+            }
         }
 
         let remaining = &self.input[self.pos..];
