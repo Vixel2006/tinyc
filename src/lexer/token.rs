@@ -1,5 +1,6 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
+    // Keywords
     If,
     Else,
     While,
@@ -9,12 +10,50 @@ pub enum TokenKind {
     Char,
     Return,
     Void,
+
+    // Whitespace
     Whitespace,
+
+    // Identifiers
     Identifier,
+
+    // Symbols
     Symbol,
+    LeftParen,
+    RightParen,
+    LeftBracket,
+    RightBracket,
+    LeftCurly,
+    RightCurly,
+    SingleQuote,
+    DoubleQuote,
+
+    // Operators
     Operator,
+    Eq,
+    Greater,
+    Less,
+    GEq,
+    LEq,
+    Plus,
+    Minus,
+    Multiply,
+    Div,
+    IsEq,
+
+    // Terminator
     Terminator,
+
+    // Unkown for errors
     Uknown,
+
+    // Literals
+    Integer,
+    Decimal,
+    Character,
+    Boolean,
+
+    // End of file
     Eof,
 }
 

@@ -3,5 +3,9 @@ name = "tinyc"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "debug"
+path = "src/main.rs"
+
 [dependencies]
 regex = "1.10.0"
