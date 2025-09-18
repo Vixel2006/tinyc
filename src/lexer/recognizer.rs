@@ -1,4 +1,5 @@
 use super::token::{Token, TokenKind};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum State {
@@ -9,14 +10,54 @@ enum State {
     Error,
 }
 
-pub struct DFA;
+pub struct DFA {
+    keywords: HashMap<String, TokenKind>,
+}
 
 impl DFA {
+    pub fn new() -> Self {
+        let kw_strings: Vec<&str> = vec![
+            "if", "else", "while", "int", "float", "char", "return", "void",
+        ];
+
+        let kw_tokens: Vec<TokenKind> = vec![
+            TokenKind::If,
+            TokenKind::Else,
+            TokenKind::While,
+            TokenKind::Int,
+            TokenKind::Float,
+            TokenKind::Char,
+            TokenKind::Return,
+            TokenKind::Void,
+        ];
+
+        let keywords: HashMap<String, TokenKind> = kw_strings
+            .into_iter()
+            .map(|s| s.to_string())
+            .zip(kw_tokens.into_iter())
+            .collect();
+
+        DFA { keywords }
+    }
+
     fn is_symbol(c: char) -> bool {
         matches!(c, '(' | ')' | '{' | '}' | ';' | '+' | '-' | '*' | '/' | '=')
     }
 
-    pub fn recognize(input: &str, line: u32, column: u32) -> Token {
+    fn match_keywords(&self, buffer: &str, length: usize, line: u32, column: u32) -> Option<Token> {
+        if let Some(token) = self.keywords.get(&buffer.to_string()) {
+            return Some(Token {
+                lexeme: buffer.to_string(),
+                kind: token.clone(),
+                length,
+                line,
+                column,
+            });
+        }
+        None
+    }
+
+    pub fn recognize(&self, input: &str, line: u32, column: u32) -> Token {
         let mut chars = input.chars().peekable();
         let mut buffer = String::new();
         let mut current_state = State::Start;
@@ -50,6 +91,9 @@ impl DFA {
         while let Some(&c) = chars.peek() {
             match current_state {
                 State::Identifier => {
+                    if let Some(token) = self.match_keywords(&buffer, buffer.len(), line, column) {
+                        return token;
+                    }
                     if c.is_alphanumeric() {
                         buffer.push(c);
                         chars.next();
