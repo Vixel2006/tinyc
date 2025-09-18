@@ -2,6 +2,7 @@ use super::recognizer::DFA;
 use super::token::{Token, TokenKind};
 
 pub struct Lexer<'a> {
+    dfa: DFA,
     input: &'a str,
     pos: usize,
     line: u32,
@@ -12,6 +13,7 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
     pub fn new(input: &'a str) -> Self {
         Self {
+            dfa: DFA::new(),
             input,
             pos: 0,
             line: 1,
@@ -28,20 +30,14 @@ impl<'a> Iterator for Lexer<'a> {
         if self.pos >= self.input.len() {
             if !self.returned_eof {
                 self.returned_eof = true;
-                return Some(Token::new(
-                    TokenKind::Eof,
-                    "",
-                    0,
-                    self.line,
-                    self.col,
-                ));
+                return Some(Token::new(TokenKind::Eof, "", 0, self.line, self.col));
             } else {
                 return None;
             }
         }
 
         let remaining = &self.input[self.pos..];
-        let token = DFA::recognize(remaining, self.line, self.col);
+        let token = self.dfa.recognize(remaining, self.line, self.col);
 
         self.pos += token.length;
         self.col += token.length as u32;

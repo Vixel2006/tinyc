@@ -1,5 +1,3 @@
-
-
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     If,
@@ -14,6 +12,7 @@ pub enum TokenKind {
     Whitespace,
     Identifier,
     Symbol,
+    Operator,
     Terminator,
     Uknown,
     Eof,
@@ -30,7 +29,12 @@ pub struct Token {
 
 impl Token {
     pub fn new(kind: TokenKind, lexeme: &str, length: usize, line: u32, column: u32) -> Self {
-        Token { kind, lexeme: lexeme.to_string(), length, line, column }
+        Token {
+            kind,
+            lexeme: lexeme.to_string(),
+            length,
+            line,
+            column,
+        }
     }
 }
-
