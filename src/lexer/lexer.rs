@@ -1,6 +1,7 @@
 use super::recognizer::DFA;
 use super::token::{Token, TokenKind};
 
+#[derive(Debug, PartialEq)]
 pub struct Lexer<'a> {
     dfa: DFA,
     input: &'a str,
@@ -30,7 +31,14 @@ impl<'a> Iterator for Lexer<'a> {
         if self.pos >= self.input.len() {
             if !self.returned_eof {
                 self.returned_eof = true;
-                return Some(Token::new(TokenKind::Eof, "", 0, self.line, self.col));
+
+                return Some(Token {
+                    lexeme: "".to_string(),
+                    kind: TokenKind::Eof,
+                    length: 0,
+                    line: self.line,
+                    column: self.col,
+                });
             } else {
                 return None;
             }

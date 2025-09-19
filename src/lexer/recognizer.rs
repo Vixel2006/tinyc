@@ -9,8 +9,10 @@ enum State {
     Symbol,
     Operator,
     Error,
+    Eof,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct DFA {
     keywords: HashMap<String, TokenKind>,
     symbols: HashMap<char, TokenKind>,
@@ -34,13 +36,11 @@ impl DFA {
             TokenKind::Void,
         ];
 
-        let keywords: HashMap<String, TokenKind> = kw_strings
+        kw_strings
             .into_iter()
             .map(|s| s.to_string())
             .zip(kw_tokens.into_iter())
-            .collect();
-
-        keywords
+            .collect()
     }
 
     fn init_symbols() -> HashMap<char, TokenKind> {
@@ -57,13 +57,10 @@ impl DFA {
             TokenKind::Terminator,
         ];
 
-        let symbols: HashMap<char, TokenKind> = symbol_strings
+        symbol_strings
             .into_iter()
-            .map(|x| x as char)
             .zip(symbol_tokens.into_iter())
-            .collect();
-
-        symbols
+            .collect()
     }
 
     fn init_operators() -> HashMap<String, TokenKind> {
@@ -82,13 +79,11 @@ impl DFA {
             TokenKind::Div,
         ];
 
-        let operators: HashMap<String, TokenKind> = operator_strings
+        operator_strings
             .into_iter()
-            .map(|x| x.to_string())
+            .map(|s| s.to_string())
             .zip(operator_tokens.into_iter())
-            .collect();
-
-        operators
+            .collect()
     }
 
     pub fn new() -> Self {
@@ -100,10 +95,7 @@ impl DFA {
     }
 
     fn is_symbol(c: char) -> bool {
-        matches!(
-            c,
-            '(' | ')' | '{' | '}' | ';' | '\'' | '"' | '[' | ']' | ';'
-        )
+        matches!(c, '(' | ')' | '{' | '}' | ';' | '\'' | '"' | '[' | ']')
     }
 
     fn is_operator(op: char) -> bool {
@@ -111,44 +103,35 @@ impl DFA {
     }
 
     fn match_keywords(&self, buffer: &str, length: usize, line: u32, column: u32) -> Option<Token> {
-        if let Some(token) = self.keywords.get(&buffer.to_string()) {
-            return Some(Token {
-                lexeme: buffer.to_string(),
-                kind: token.clone(),
-                length,
-                line,
-                column,
-            });
-        }
-        None
+        self.keywords.get(buffer).map(|token| Token {
+            lexeme: buffer.to_string(),
+            kind: token.clone(),
+            length,
+            line,
+            column,
+        })
     }
 
     fn match_symbols(&self, buffer: &str, length: usize, line: u32, column: u32) -> Option<Token> {
-        if let Some(token) = self.symbols.get(&buffer.chars().next().unwrap()) {
-            return Some(Token {
+        buffer.chars().next().and_then(|c| {
+            self.symbols.get(&c).map(|token| Token {
                 lexeme: buffer.to_string(),
                 kind: token.clone(),
                 length,
                 line,
                 column,
-            });
-        }
-
-        None
+            })
+        })
     }
 
     fn match_operator(&self, buffer: &str, length: usize, line: u32, column: u32) -> Option<Token> {
-        if let Some(token) = self.operators.get(&buffer.to_string()) {
-            return Some(Token {
-                lexeme: buffer.to_string(),
-                kind: token.clone(),
-                length,
-                line,
-                column,
-            });
-        }
-
-        None
+        self.operators.get(buffer).map(|token| Token {
+            lexeme: buffer.to_string(),
+            kind: token.clone(),
+            length,
+            line,
+            column,
+        })
     }
 
     pub fn recognize(&self, input: &str, line: u32, column: u32) -> Token {
@@ -156,7 +139,6 @@ impl DFA {
         let mut buffer = String::new();
         let mut current_state = State::Start;
 
-        // Handle empty input
         let first_char = match chars.peek() {
             Some(&c) => c,
             None => {
@@ -187,10 +169,7 @@ impl DFA {
         while let Some(&c) = chars.peek() {
             match current_state {
                 State::Identifier => {
-                    if let Some(token) = self.match_keywords(&buffer, buffer.len(), line, column) {
-                        return token;
-                    }
-                    if c.is_alphanumeric() {
+                    if c.is_alphanumeric() || c == '_' {
                         buffer.push(c);
                         chars.next();
                     } else {
@@ -205,41 +184,75 @@ impl DFA {
                         break;
                     }
                 }
-                State::Symbol => {
-                    if let Some(token) = self.match_symbols(&buffer, buffer.len(), line, column) {
-                        return token;
-                    }
-                }
                 State::Operator => {
-                    if let Some(token) = self.match_symbols(&buffer, buffer.len(), line, column) {
-                        return token;
+                    // allow 2-char ops like ==, <=, >=
+                    let mut temp = buffer.clone();
+                    temp.push(c);
+                    if self.operators.contains_key(&temp) {
+                        buffer.push(c);
+                        chars.next();
                     }
-                }
-                State::Error => {
                     break;
                 }
-                State::Start => {
-                    break;
-                }
+                State::Symbol | State::Error | State::Start | State::Eof => break,
             }
         }
 
-        let kind = match current_state {
-            State::Identifier => TokenKind::Identifier,
-            State::Whitespace => TokenKind::Whitespace,
-            State::Symbol => TokenKind::Symbol,
-            State::Operator => TokenKind::Operator,
-            State::Error => TokenKind::Uknown,
-            State::Start => TokenKind::Uknown,
-        };
-
         let token_length = buffer.len();
-        Token {
-            lexeme: buffer,
-            kind,
-            length: token_length,
-            line,
-            column,
+
+        // final classification
+        match current_state {
+            State::Identifier => {
+                if let Some(keyword) = self.match_keywords(&buffer, token_length, line, column) {
+                    return keyword;
+                }
+                Token {
+                    lexeme: buffer,
+                    kind: TokenKind::Identifier,
+                    length: token_length,
+                    line,
+                    column,
+                }
+            }
+            State::Whitespace => Token {
+                lexeme: buffer,
+                kind: TokenKind::Whitespace,
+                length: token_length,
+                line,
+                column,
+            },
+            State::Symbol => self
+                .match_symbols(&buffer, token_length, line, column)
+                .unwrap_or(Token {
+                    lexeme: buffer,
+                    kind: TokenKind::Symbol,
+                    length: token_length,
+                    line,
+                    column,
+                }),
+            State::Operator => self
+                .match_operator(&buffer, token_length, line, column)
+                .unwrap_or(Token {
+                    lexeme: buffer,
+                    kind: TokenKind::Operator,
+                    length: token_length,
+                    line,
+                    column,
+                }),
+            State::Error => Token {
+                lexeme: buffer,
+                kind: TokenKind::Uknown,
+                length: token_length,
+                line,
+                column,
+            },
+            _ => Token {
+                lexeme: "".to_string(),
+                kind: TokenKind::Eof,
+                length: 0,
+                line,
+                column,
+            },
         }
     }
 }
