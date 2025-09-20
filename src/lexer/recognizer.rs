@@ -22,7 +22,7 @@ pub struct DFA {
 impl DFA {
     fn init_keywords() -> HashMap<String, TokenKind> {
         let kw_strings: Vec<&str> = vec![
-            "if", "else", "while", "int", "float", "char", "return", "void",
+            "if", "else", "while", "int", "float", "char", "bool", "return", "void",
         ];
 
         let kw_tokens: Vec<TokenKind> = vec![
@@ -32,6 +32,7 @@ impl DFA {
             TokenKind::Int,
             TokenKind::Float,
             TokenKind::Char,
+            TokenKind::Bool,
             TokenKind::Return,
             TokenKind::Void,
         ];
@@ -185,7 +186,6 @@ impl DFA {
                     }
                 }
                 State::Operator => {
-                    // allow 2-char ops like ==, <=, >=
                     let mut temp = buffer.clone();
                     temp.push(c);
                     if self.operators.contains_key(&temp) {
@@ -241,7 +241,7 @@ impl DFA {
                 }),
             State::Error => Token {
                 lexeme: buffer,
-                kind: TokenKind::Uknown,
+                kind: TokenKind::Unknown,
                 length: token_length,
                 line,
                 column,

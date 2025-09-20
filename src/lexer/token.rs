@@ -45,7 +45,7 @@ pub enum TokenKind {
     Terminator,
 
     // Unkown for errors
-    Uknown,
+    Unknown,
 
     // Literals
     Integer,
