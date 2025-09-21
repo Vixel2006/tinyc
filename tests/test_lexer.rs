@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod lexer_tests {
     use tinyc::lexer::lexer::Lexer;
-    use tinyc::lexer::token::{Token, TokenKind};
+    use tinyc::lexer::token::TokenKind;
 
     #[test]
     fn keyword_lexing() {
@@ -30,7 +30,7 @@ mod lexer_tests {
 
     #[test]
     fn operator_lexing() {
-        let lexer = Lexer::new("= == <= >= + - * /");
+        let lexer = Lexer::new("= == <= >= + - * / | & ~ ^ && || ! << >>");
         let expected_tokens: Vec<TokenKind> = vec![
             TokenKind::Eq,
             TokenKind::IsEq,
@@ -40,6 +40,15 @@ mod lexer_tests {
             TokenKind::Minus,
             TokenKind::Multiply,
             TokenKind::Div,
+            TokenKind::BitwiseOr,
+            TokenKind::BitwiseAnd,
+            TokenKind::BitwiseNot,
+            TokenKind::BitwiseXor,
+            TokenKind::LogicalAnd,
+            TokenKind::LogicalOr,
+            TokenKind::LogicalNot,
+            TokenKind::LeftShift,
+            TokenKind::RightShift,
         ];
 
         let mut expected_idx = 0;
@@ -54,7 +63,7 @@ mod lexer_tests {
 
     #[test]
     fn symbol_lexing() {
-        let lexer = Lexer::new("( ) { } [ ] ;");
+        let lexer = Lexer::new("( ) { } [ ]");
         let expected_tokens: Vec<TokenKind> = vec![
             TokenKind::LeftParen,
             TokenKind::RightParen,
@@ -62,10 +71,28 @@ mod lexer_tests {
             TokenKind::RightCurly,
             TokenKind::LeftBracket,
             TokenKind::RightBracket,
-            TokenKind::Terminator,
         ];
 
-        let mut output_idx = 0;
+        let mut expected_idx = 0;
+
+        for token in lexer {
+            if token.kind != TokenKind::Whitespace && token.kind != TokenKind::Eof {
+                assert_eq!(expected_tokens[expected_idx], token.kind);
+                expected_idx += 1;
+            }
+        }
+    }
+
+    #[test]
+    fn punctuation_lexing() {
+        let lexer = Lexer::new("; : . ,");
+        let expected_tokens: Vec<TokenKind> = vec![
+            TokenKind::SemiColon,
+            TokenKind::Colon,
+            TokenKind::Dot,
+            TokenKind::Comma,
+        ];
+
         let mut expected_idx = 0;
 
         for token in lexer {
@@ -80,8 +107,6 @@ mod lexer_tests {
     fn identifier_lexing() {
         let lexer = Lexer::new("ifx i n a whilex whil var_name");
         let expected_token: TokenKind = TokenKind::Identifier;
-
-        let mut output_idx = 0;
 
         for token in lexer {
             if token.kind != TokenKind::Whitespace && token.kind != TokenKind::Eof {
@@ -138,8 +163,6 @@ mod lexer_tests {
         let lexer = Lexer::new("this is a new sentence to test column increment");
         let mut column = 1;
 
-        let mut output_idx = 0;
-
         for token in lexer {
             if token.kind != TokenKind::Whitespace && token.kind != TokenKind::Eof {
                 assert_eq!(column, token.column);
@@ -168,7 +191,7 @@ mod lexer_tests {
             TokenKind::Eq,
             TokenKind::Whitespace,
             TokenKind::Unknown,
-            TokenKind::Terminator,
+            TokenKind::SemiColon,
             TokenKind::Whitespace,
             TokenKind::While,
             TokenKind::Whitespace,
@@ -185,11 +208,10 @@ mod lexer_tests {
             TokenKind::Whitespace,
             TokenKind::Identifier,
             TokenKind::Whitespace,
-            TokenKind::Plus,
-            TokenKind::Eq,
+            TokenKind::PlusEq,
             TokenKind::Whitespace,
             TokenKind::Unknown,
-            TokenKind::Terminator,
+            TokenKind::SemiColon,
             TokenKind::Whitespace,
             TokenKind::RightCurly,
             TokenKind::Whitespace,
