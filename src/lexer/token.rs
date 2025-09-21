@@ -30,19 +30,45 @@ pub enum TokenKind {
 
     // Operators
     Operator,
+
+    // Assignment operators
     Eq,
-    Greater,
-    Less,
-    GEq,
-    LEq,
+    PlusEq,
+    MinusEq,
+    MultiplyEq,
+    DivEq,
+
+    // Mathimatical Operators
     Plus,
     Minus,
     Multiply,
     Div,
-    IsEq,
 
-    // Terminator
-    Terminator,
+    // Conditional Operators
+    IsEq,
+    Greater,
+    Less,
+    GEq,
+    LEq,
+
+    // Logical Operators
+    LogicalAnd,
+    LogicalOr,
+    LogicalNot,
+
+    // Bitwise Operators
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseNot,
+    BitwiseXor,
+    LeftShift,
+    RightShift,
+
+    // Punctuation
+    Comma,
+    SemiColon,
+    Dot,
+    Colon,
 
     // Unkown for errors
     Unknown,
@@ -52,6 +78,10 @@ pub enum TokenKind {
     Decimal,
     Character,
     Boolean,
+
+    // Comments
+    OneLineComment,
+    MultiLineComment,
 
     // End of file
     Eof,

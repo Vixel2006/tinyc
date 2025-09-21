@@ -8,6 +8,7 @@ enum State {
     Whitespace,
     Symbol,
     Operator,
+    Punctuation,
     Error,
     Eof,
 }
@@ -17,6 +18,7 @@ pub struct DFA {
     keywords: HashMap<String, TokenKind>,
     symbols: HashMap<char, TokenKind>,
     operators: HashMap<String, TokenKind>,
+    punctuations: HashMap<char, TokenKind>,
 }
 
 impl DFA {
@@ -45,7 +47,7 @@ impl DFA {
     }
 
     fn init_symbols() -> HashMap<char, TokenKind> {
-        let symbol_strings: Vec<char> = vec!['(', ')', '[', ']', '{', '}', '\'', '"', ';'];
+        let symbol_strings: Vec<char> = vec!['(', ')', '[', ']', '{', '}', '\'', '"'];
         let symbol_tokens: Vec<TokenKind> = vec![
             TokenKind::LeftParen,
             TokenKind::RightParen,
@@ -55,7 +57,6 @@ impl DFA {
             TokenKind::RightCurly,
             TokenKind::SingleQuote,
             TokenKind::DoubleQuote,
-            TokenKind::Terminator,
         ];
 
         symbol_strings
@@ -65,7 +66,10 @@ impl DFA {
     }
 
     fn init_operators() -> HashMap<String, TokenKind> {
-        let operator_strings: Vec<&str> = vec!["=", ">", "<", "==", "<=", ">=", "+", "-", "*", "/"];
+        let operator_strings: Vec<&str> = vec![
+            "=", ">", "<", "==", "<=", ">=", "+", "-", "*", "/", "&&", "||", "!", "&", "|", "~",
+            "^", "<<", ">>", "+=", "-=", "*=", "/=",
+        ];
 
         let operator_tokens: Vec<TokenKind> = vec![
             TokenKind::Eq,
@@ -78,6 +82,19 @@ impl DFA {
             TokenKind::Minus,
             TokenKind::Multiply,
             TokenKind::Div,
+            TokenKind::LogicalAnd,
+            TokenKind::LogicalOr,
+            TokenKind::LogicalNot,
+            TokenKind::BitwiseAnd,
+            TokenKind::BitwiseOr,
+            TokenKind::BitwiseNot,
+            TokenKind::BitwiseXor,
+            TokenKind::LeftShift,
+            TokenKind::RightShift,
+            TokenKind::PlusEq,
+            TokenKind::MinusEq,
+            TokenKind::MultiplyEq,
+            TokenKind::DivEq,
         ];
 
         operator_strings
@@ -87,20 +104,43 @@ impl DFA {
             .collect()
     }
 
+    fn init_punctuation() -> HashMap<char, TokenKind> {
+        let punctuation_strings: Vec<char> = vec![';', ',', '.', ':'];
+        let punctuation_tokens: Vec<TokenKind> = vec![
+            TokenKind::SemiColon,
+            TokenKind::Comma,
+            TokenKind::Dot,
+            TokenKind::Colon,
+        ];
+
+        punctuation_strings
+            .into_iter()
+            .zip(punctuation_tokens.into_iter())
+            .collect()
+    }
+
     pub fn new() -> Self {
         DFA {
             keywords: Self::init_keywords(),
             symbols: Self::init_symbols(),
             operators: Self::init_operators(),
+            punctuations: Self::init_punctuation(),
         }
     }
 
+    fn is_punctuation(c: char) -> bool {
+        matches!(c, ';' | ',' | '.' | ':')
+    }
+
     fn is_symbol(c: char) -> bool {
-        matches!(c, '(' | ')' | '{' | '}' | ';' | '\'' | '"' | '[' | ']')
+        matches!(c, '(' | ')' | '{' | '}' | '\'' | '"' | '[' | ']')
     }
 
     fn is_operator(op: char) -> bool {
-        matches!(op, '=' | '<' | '>' | '+' | '-' | '*' | '/')
+        matches!(
+            op,
+            '=' | '<' | '>' | '+' | '-' | '*' | '/' | '|' | '&' | '^' | '~' | '!'
+        )
     }
 
     fn match_keywords(&self, buffer: &str, length: usize, line: u32, column: u32) -> Option<Token> {
@@ -135,6 +175,24 @@ impl DFA {
         })
     }
 
+    fn match_punctuation(
+        &self,
+        buffer: &str,
+        length: usize,
+        line: u32,
+        column: u32,
+    ) -> Option<Token> {
+        buffer.chars().next().and_then(|c| {
+            self.punctuations.get(&c).map(|token| Token {
+                lexeme: buffer.to_string(),
+                kind: token.clone(),
+                length,
+                line,
+                column,
+            })
+        })
+    }
+
     pub fn recognize(&self, input: &str, line: u32, column: u32) -> Token {
         let mut chars = input.chars().peekable();
         let mut buffer = String::new();
@@ -161,6 +219,8 @@ impl DFA {
             current_state = State::Symbol;
         } else if DFA::is_operator(first_char) {
             current_state = State::Operator;
+        } else if DFA::is_punctuation(first_char) {
+            current_state = State::Punctuation;
         } else {
             current_state = State::Error;
         }
@@ -194,7 +254,9 @@ impl DFA {
                     }
                     break;
                 }
-                State::Symbol | State::Error | State::Start | State::Eof => break,
+                State::Symbol | State::Punctuation | State::Error | State::Start | State::Eof => {
+                    break;
+                }
             }
         }
 
@@ -235,6 +297,15 @@ impl DFA {
                 .unwrap_or(Token {
                     lexeme: buffer,
                     kind: TokenKind::Operator,
+                    length: token_length,
+                    line,
+                    column,
+                }),
+            State::Punctuation => self
+                .match_punctuation(&buffer, token_length, line, column)
+                .unwrap_or(Token {
+                    lexeme: buffer,
+                    kind: TokenKind::Symbol,
                     length: token_length,
                     line,
                     column,
