@@ -9,7 +9,13 @@ enum State {
     Symbol,
     Operator,
     Punctuation,
+    Integer,
+    Float,
     Error,
+    SusChar,
+    SusStr,
+    Char,
+    Str,
     Eof,
 }
 
@@ -24,7 +30,8 @@ pub struct DFA {
 impl DFA {
     fn init_keywords() -> HashMap<String, TokenKind> {
         let kw_strings: Vec<&str> = vec![
-            "if", "else", "while", "int", "float", "char", "bool", "return", "void",
+            "if", "else", "while", "int", "float", "char", "bool", "return", "void", "true",
+            "false",
         ];
 
         let kw_tokens: Vec<TokenKind> = vec![
@@ -37,6 +44,8 @@ impl DFA {
             TokenKind::Bool,
             TokenKind::Return,
             TokenKind::Void,
+            TokenKind::True,
+            TokenKind::False,
         ];
 
         kw_strings
@@ -133,7 +142,26 @@ impl DFA {
     }
 
     fn is_symbol(c: char) -> bool {
-        matches!(c, '(' | ')' | '{' | '}' | '\'' | '"' | '[' | ']')
+        matches!(c, '(' | ')' | '{' | '}' | '[' | ']')
+    }
+
+    fn is_single_quote(c: char) -> bool {
+        matches!(c, '\'')
+    }
+
+    fn is_double_quote(c: char) -> bool {
+        matches!(c, '"')
+    }
+
+    fn is_escape_sequence(first: char, second: Option<char>) -> bool {
+        if first == '\\' {
+            return false;
+        }
+
+        match second {
+            Some('\'') | Some('\\') | Some('n') | Some('t') | Some('\"') => true,
+            _ => false,
+        }
     }
 
     fn is_operator(op: char) -> bool {
@@ -213,8 +241,14 @@ impl DFA {
 
         if first_char.is_ascii_alphabetic() {
             current_state = State::Identifier;
+        } else if first_char.is_ascii_digit() {
+            current_state = State::Integer;
         } else if first_char.is_whitespace() {
             current_state = State::Whitespace;
+        } else if DFA::is_single_quote(first_char) {
+            current_state = State::SusChar;
+        } else if DFA::is_double_quote(first_char) {
+            current_state = State::SusStr;
         } else if DFA::is_symbol(first_char) {
             current_state = State::Symbol;
         } else if DFA::is_operator(first_char) {
@@ -254,7 +288,61 @@ impl DFA {
                     }
                     break;
                 }
-                State::Symbol | State::Punctuation | State::Error | State::Start | State::Eof => {
+                State::Integer => {
+                    if c.is_ascii_digit() {
+                        buffer.push(c);
+                        chars.next();
+                    } else if c == '.' {
+                        current_state = State::Float;
+                        buffer.push(c);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                State::Float => {
+                    if c.is_ascii_digit() {
+                        buffer.push(c);
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+                State::SusChar => {
+                    if (c.is_alphanumeric()
+                        || DFA::is_escape_sequence(c, chars.peek().copied())
+                        || c.is_whitespace())
+                        && buffer.len() == 1
+                    {
+                        buffer.push(c);
+                        chars.next();
+                    } else if DFA::is_single_quote(c) && buffer.len() == 2 {
+                        buffer.push(c);
+                        chars.next();
+                        current_state = State::Char
+                    } else {
+                        break;
+                    }
+                }
+                State::SusStr => {
+                    if c.is_alphanumeric() || DFA::is_escape_sequence(c, chars.peek().copied()) {
+                        buffer.push(c);
+                        chars.next();
+                    } else if DFA::is_double_quote(c) {
+                        buffer.push(c);
+                        chars.next();
+                        current_state = State::Str;
+                    } else {
+                        break;
+                    }
+                }
+                State::Symbol
+                | State::Char
+                | State::Str
+                | State::Punctuation
+                | State::Error
+                | State::Start
+                | State::Eof => {
                     break;
                 }
             }
@@ -276,6 +364,20 @@ impl DFA {
                     column,
                 }
             }
+            State::Integer => Token {
+                lexeme: buffer,
+                kind: TokenKind::Integer,
+                length: token_length,
+                line,
+                column,
+            },
+            State::Float => Token {
+                lexeme: buffer,
+                kind: TokenKind::Decimal,
+                length: token_length,
+                line,
+                column,
+            },
             State::Whitespace => Token {
                 lexeme: buffer,
                 kind: TokenKind::Whitespace,
@@ -310,7 +412,22 @@ impl DFA {
                     line,
                     column,
                 }),
-            State::Error => Token {
+            State::Char => Token {
+                lexeme: buffer,
+                kind: TokenKind::Character,
+                length: token_length,
+                line,
+                column,
+            },
+
+            State::Str => Token {
+                lexeme: buffer,
+                kind: TokenKind::String,
+                length: token_length,
+                line,
+                column,
+            },
+            State::Error | State::SusStr | State::SusChar => Token {
                 lexeme: buffer,
                 kind: TokenKind::Unknown,
                 length: token_length,

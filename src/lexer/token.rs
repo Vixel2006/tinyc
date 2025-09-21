@@ -10,6 +10,8 @@ pub enum TokenKind {
     Char,
     Return,
     Void,
+    True,
+    False,
 
     // Whitespace
     Whitespace,
@@ -77,7 +79,7 @@ pub enum TokenKind {
     Integer,
     Decimal,
     Character,
-    Boolean,
+    String,
 
     // Comments
     OneLineComment,
