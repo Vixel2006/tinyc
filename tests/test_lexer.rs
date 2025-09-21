@@ -5,7 +5,7 @@ mod lexer_tests {
 
     #[test]
     fn keyword_lexing() {
-        let lexer = Lexer::new("if else while int float bool char void return");
+        let lexer = Lexer::new("if else while int float bool char void return true false");
         let expected_tokens: Vec<TokenKind> = vec![
             TokenKind::If,
             TokenKind::Else,
@@ -16,6 +16,8 @@ mod lexer_tests {
             TokenKind::Char,
             TokenKind::Void,
             TokenKind::Return,
+            TokenKind::True,
+            TokenKind::False,
         ];
 
         let mut expected_idx = 0;
@@ -136,6 +138,28 @@ mod lexer_tests {
     }
 
     #[test]
+    fn char_literal_lexing() {
+        let lexer = Lexer::new("'t' 'x' '\t' '\n' ' ' ''");
+        let expected_tokens: Vec<TokenKind> = vec![
+            TokenKind::Character,
+            TokenKind::Character,
+            TokenKind::Character,
+            TokenKind::Character,
+            TokenKind::Character,
+            TokenKind::Unknown,
+        ];
+
+        let mut output_idx = 0;
+
+        for token in lexer {
+            if token.kind != TokenKind::Whitespace && token.kind != TokenKind::Eof {
+                assert_eq!(expected_tokens[output_idx], token.kind);
+                output_idx += 1;
+            }
+        }
+    }
+
+    #[test]
     fn new_line_increament() {
         let lexer = Lexer::new("\n\n\n");
 
@@ -173,7 +197,7 @@ mod lexer_tests {
 
     #[test]
     fn full_code_snippet() {
-        let lexer = Lexer::new("int main(void) {\nint i = 0;\nwhile (i < 10) {\ni += 1;\n}\n}\n");
+        let lexer = Lexer::new("int main(void) {\nint i = 0;\nwhile (i < 10.5) {\ni += 1;\n}\n}\n");
         let expected_tokens: Vec<TokenKind> = vec![
             TokenKind::Int,
             TokenKind::Whitespace,
@@ -190,7 +214,7 @@ mod lexer_tests {
             TokenKind::Whitespace,
             TokenKind::Eq,
             TokenKind::Whitespace,
-            TokenKind::Unknown,
+            TokenKind::Integer,
             TokenKind::SemiColon,
             TokenKind::Whitespace,
             TokenKind::While,
@@ -200,8 +224,7 @@ mod lexer_tests {
             TokenKind::Whitespace,
             TokenKind::Less,
             TokenKind::Whitespace,
-            TokenKind::Unknown,
-            TokenKind::Unknown,
+            TokenKind::Decimal,
             TokenKind::RightParen,
             TokenKind::Whitespace,
             TokenKind::LeftCurly,
@@ -210,7 +233,7 @@ mod lexer_tests {
             TokenKind::Whitespace,
             TokenKind::PlusEq,
             TokenKind::Whitespace,
-            TokenKind::Unknown,
+            TokenKind::Integer,
             TokenKind::SemiColon,
             TokenKind::Whitespace,
             TokenKind::RightCurly,
