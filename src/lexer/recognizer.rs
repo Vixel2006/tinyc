@@ -76,7 +76,7 @@ impl DFA {
 
     fn init_operators() -> HashMap<String, TokenKind> {
         let operator_strings: Vec<&str> = vec![
-            "=", ">", "<", "==", "<=", ">=", "+", "-", "*", "/", "&&", "||", "!", "&", "|", "~",
+            "=", ">", "<", "==", "!=", "<=", ">=", "+", "-", "*", "/", "&&", "||", "!", "&", "|", "~",
             "^", "<<", ">>", "+=", "-=", "*=", "/=",
         ];
 
@@ -85,6 +85,7 @@ impl DFA {
             TokenKind::Greater,
             TokenKind::Less,
             TokenKind::IsEq,
+            TokenKind::NotEq,
             TokenKind::LEq,
             TokenKind::GEq,
             TokenKind::Plus,

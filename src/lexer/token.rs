@@ -48,6 +48,7 @@ pub enum TokenKind {
 
     // Conditional Operators
     IsEq,
+    NotEq,
     Greater,
     Less,
     GEq,

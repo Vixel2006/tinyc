@@ -28,33 +28,38 @@ impl<'a> Iterator for Lexer<'a> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos >= self.input.len() {
-            if !self.returned_eof {
-                self.returned_eof = true;
+        loop {
+            if self.pos >= self.input.len() {
+                if !self.returned_eof {
+                    self.returned_eof = true;
 
-                return Some(Token {
-                    lexeme: "".to_string(),
-                    kind: TokenKind::Eof,
-                    length: 0,
-                    line: self.line,
-                    column: self.col,
-                });
-            } else {
-                return None;
+                    return Some(Token {
+                        lexeme: "".to_string(),
+                        kind: TokenKind::Eof,
+                        length: 0,
+                        line: self.line,
+                        column: self.col,
+                    });
+                } else {
+                    return None;
+                }
             }
+
+            let remaining = &self.input[self.pos..];
+            let token = self.dfa.recognize(remaining, self.line, self.col);
+
+            self.pos += token.length;
+            self.col += token.length as u32;
+
+            if token.kind == TokenKind::Whitespace {
+                if token.lexeme.contains('\n') {
+                    self.line += 1;
+                    self.col = 1;
+                }
+                continue; // Skip whitespace and get the next token
+            }
+
+            return Some(token);
         }
-
-        let remaining = &self.input[self.pos..];
-        let token = self.dfa.recognize(remaining, self.line, self.col);
-
-        self.pos += token.length;
-        self.col += token.length as u32;
-
-        if token.kind == TokenKind::Whitespace && token.lexeme.contains('\n') {
-            self.line += 1;
-            self.col = 1;
-        }
-
-        Some(token)
     }
 }
