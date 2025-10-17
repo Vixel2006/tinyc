@@ -1,7 +1,6 @@
 use super::productions::{
     BinaryOp, Decls, Expr, FuncDecl, Param, Program, Stmt, Type, UnaryOp, Val, VarDecl,
 };
-use crate::lexer::lexer::Lexer;
 use crate::lexer::token::{Token, TokenKind};
 
 #[derive(Debug)]
@@ -20,20 +19,23 @@ pub enum ParseError {
 }
 
 pub struct Parser<'a> {
-    tokens: Vec<Token>,
+    tokens: &'a [Token],
     curr: usize,
     errors: Vec<ParseError>,
 }
 
 impl<'a> Parser<'a> {
-    fn matches(&mut self, kind: TokenKind) -> Result<(), String> {
-        if tokens[curr].kind == kind {
+    fn matches(&mut self, kind: TokenKind) -> Result<bool, String> {
+        if self.tokens[self.curr].kind == kind {
             self.consume();
-            Ok(())
+            Ok(true)
         } else {
             Err(format!(
                 "Syntax Error: line: {}, col: {}, Expected {:?} but got {:?}",
-                tokens[curr].line, tokens[curr].col, kind, tokens[curr].kind
+                self.tokens[self.curr].line,
+                self.tokens[self.curr].column,
+                kind,
+                self.tokens[self.curr].kind
             ))
         }
     }
@@ -52,7 +54,7 @@ impl<'a> Parser<'a> {
 
     fn match_tokens(&self, kinds: &[TokenKind]) -> bool {
         for kind in kinds {
-            if self.tokens[self.curr] == kind {
+            if &self.tokens[self.curr].kind == kind {
                 return true;
             }
         }
@@ -63,7 +65,7 @@ impl<'a> Parser<'a> {
 
     fn parse_expr(&mut self) {}
 
-    fn parse_decl(&mut self) -> Result<Decl, String> {
+    fn parse_decl(&mut self) -> Result<Decls, String> {
         let mut ty: Type;
         let mut id: Token;
         if self.match_tokens(&[
@@ -79,17 +81,17 @@ impl<'a> Parser<'a> {
                 TokenKind::Char => Type::Char,
                 TokenKind::Bool => Type::Bool,
                 TokenKind::Void => Type::Void,
-                _ => None,
+                default => Type::Unknown,
             };
             self.consume();
         }
 
-        if self.matches(TokenKind::Identifier) {
+        if self.matches(TokenKind::Identifier).unwrap() {
             id = self.tokens[self.curr];
             self.consume();
         }
 
-        if self.matches(TokenKind::LeftParen) {
+        if self.matches(TokenKind::LeftParen).unwrap() {
             // Here we go for the func decl shit
         } else if self.match_tokens(&[TokenKind::SemiColon, TokenKind::Eq]) {
             // Here we go for the variable decl shit
@@ -98,25 +100,25 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_var_decl(&mut self, ty: Type, id: Token) {
-        if self.matches(TokenKind::SemiColon) {
-            return VarDecl {
+    fn parse_var_decl(&mut self, ty: Type, id: &Token) -> Result<VarDecl, String> {
+        if self.matches(TokenKind::SemiColon).unwrap() {
+            return Ok(VarDecl {
                 var_type: ty,
                 identifier: id,
                 initializer: None,
-            };
-        } else if self.matches(TokenKind::Eq) {
+            });
+        } else if self.matches(TokenKind::Eq).unwrap() {
             self.consume();
             // Here we do some stupid experision parsing
         }
     }
 
-    fn parse_func_decl(&mut self, ty: Type, id: Token) {
+    fn parse_func_decl(&mut self, ty: Type, id: &Token) -> Result<FuncDecl, String> {
         let mut params: Vec<Param> = Vec::new();
         if self.tokens[self.curr].kind != TokenKind::RightParen {
             loop {
-                let param = self.parse_param()?;
-                params.push(param);
+                let param = self.parse_param();
+                params.push(param.unwrap());
                 self.consume();
 
                 if self.tokens[self.curr].kind == TokenKind::Comma {
@@ -132,24 +134,26 @@ impl<'a> Parser<'a> {
 
         if self.match_tokens(&[TokenKind::SemiColon]) {
             self.consume();
-            Ok(return FuncDecl {
+            Ok(FuncDecl {
                 return_type: ty,
                 identifier: id,
                 params: params,
                 body: None,
             })
         } else {
-            self.parse_stmt()?;
             Ok(FuncDecl {
                 return_type: ty,
                 identifier: id,
                 params,
-                body: Some(body),
+                body: None,
             })
         }
     }
 
     fn parse_param(&mut self) -> Result<Param, String> {
+        let ty: Type;
+        let id: &Token;
+
         if self.match_tokens(&[
             TokenKind::Int,
             TokenKind::Float,
@@ -163,15 +167,15 @@ impl<'a> Parser<'a> {
                 TokenKind::Char => Type::Char,
                 TokenKind::Bool => Type::Bool,
                 TokenKind::Void => Type::Void,
-                _ => None,
+                default => Type::Unknown,
             };
             self.consume();
         } else {
-            Err(format!("fuck you parameter"))
+            return Err(format!("not correct parameter"));
         }
 
-        if self.matches(TokenKind::Identifier) {
-            id = self.tokens[self.curr];
+        if self.matches(TokenKind::Identifier).unwrap() {
+            id = &self.tokens[self.curr];
             self.consume();
         }
 
