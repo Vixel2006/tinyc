@@ -51,55 +51,55 @@ pub enum UnaryOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr {
+pub enum Expr<'a> {
     Value(Val),
-    Identifier(Token),
-    Binary(Box<Expr>, BinaryOp, Box<Expr>),
-    Unary(UnaryOp, Box<Expr>),
-    Paren(Box<Expr>),
-    Call(Token, Vec<Expr>),
-    Assign(Token, Box<Expr>), // Assignment expression: identifier and assigned value
+    Identifier(&'a Token),
+    Binary(Box<Expr<'a>>, BinaryOp, Box<Expr<'a>>),
+    Unary(UnaryOp, Box<Expr<'a>>),
+    Paren(Box<Expr<'a>>),
+    Call(Token, Vec<Expr<'a>>),
+    Assign(Token, Box<Expr<'a>>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Param {
+pub struct Param<'a> {
     pub param_type: Type,
-    pub identifier: Token,
+    pub identifier: &'a Token,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct VarDecl {
+pub struct VarDecl<'a> {
     pub var_type: Type,
-    pub identifier: Token,
-    pub initializer: Option<Expr>,
+    pub identifier: &'a Token,
+    pub initializer: Option<Expr<'a>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FuncDecl {
+pub struct FuncDecl<'a> {
     pub return_type: Type,
-    pub identifier: Token,
-    pub params: Vec<Param>,
-    pub body: Vec<Stmt>,
+    pub identifier: &'a Token,
+    pub params: Vec<Param<'a>>,
+    pub body: Option<Vec<Stmt<'a>>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Decls {
-    Var(VarDecl),
-    Func(FuncDecl),
+pub enum Decls<'a> {
+    Var(VarDecl<'a>),
+    Func(FuncDecl<'a>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Stmt {
-    Decl(Decls),
-    Assign(Token, Expr),
-    If(Expr, Vec<Stmt>, Option<Vec<Stmt>>),
-    While(Expr, Vec<Stmt>),
-    Return(Option<Expr>),
-    Expr(Expr),
-    Block(Vec<Stmt>),
+pub enum Stmt<'a> {
+    Decl(Decls<'a>),
+    Assign(&'a Token, Expr<'a>),
+    If(Expr<'a>, Vec<Stmt<'a>>, Option<Vec<Stmt<'a>>>),
+    While(Expr<'a>, Vec<Stmt<'a>>),
+    Return(Option<Expr<'a>>),
+    Expr(Expr<'a>),
+    Block(Vec<Stmt<'a>>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Program {
-    pub declarations: Vec<Decls>,
+pub struct Program<'a> {
+    pub declarations: Vec<Decls<'a>>,
 }
