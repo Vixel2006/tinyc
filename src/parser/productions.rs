@@ -51,55 +51,55 @@ pub enum UnaryOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr<'a> {
+pub enum Expr {
     Value(Val),
-    Identifier(&'a Token),
-    Binary(Box<Expr<'a>>, BinaryOp, Box<Expr<'a>>),
-    Unary(UnaryOp, Box<Expr<'a>>),
-    Paren(Box<Expr<'a>>),
-    Call(Token, Vec<Expr<'a>>),
-    Assign(Token, Box<Expr<'a>>),
+    Identifier(Token),
+    Binary(Box<Expr>, BinaryOp, Box<Expr>),
+    Unary(UnaryOp, Box<Expr>),
+    Paren(Box<Expr>),
+    Call(Token, Vec<Expr>),
+    Assign(Token, Box<Expr>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Param<'a> {
+pub struct Param {
     pub param_type: Type,
-    pub identifier: &'a Token,
+    pub identifier: Token,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct VarDecl<'a> {
+pub struct VarDecl {
     pub var_type: Type,
-    pub identifier: &'a Token,
-    pub initializer: Option<Expr<'a>>,
+    pub identifier: Token,
+    pub initializer: Option<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FuncDecl<'a> {
+pub struct FuncDecl {
     pub return_type: Type,
-    pub identifier: &'a Token,
-    pub params: Vec<Param<'a>>,
-    pub body: Option<Vec<Stmt<'a>>>,
+    pub identifier: Token,
+    pub params: Vec<Param>,
+    pub body: Option<Vec<Stmt>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Decls<'a> {
-    Var(VarDecl<'a>),
-    Func(FuncDecl<'a>),
+pub enum Decls {
+    Var(VarDecl),
+    Func(FuncDecl),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Stmt<'a> {
-    Decl(Decls<'a>),
-    Assign(&'a Token, Expr<'a>),
-    If(Expr<'a>, Vec<Stmt<'a>>, Option<Vec<Stmt<'a>>>),
-    While(Expr<'a>, Vec<Stmt<'a>>),
-    Return(Option<Expr<'a>>),
-    Expr(Expr<'a>),
-    Block(Vec<Stmt<'a>>),
+pub enum Stmt {
+    Decl(Decls),
+    Assign(Token, Expr),
+    If(Expr, Vec<Stmt>, Option<Vec<Stmt>>),
+    While(Expr, Vec<Stmt>),
+    Return(Option<Expr>),
+    Expr(Expr),
+    Block(Vec<Stmt>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Program<'a> {
-    pub declarations: Vec<Decls<'a>>,
+pub struct Program {
+    pub declarations: Vec<Stmt>,
 }

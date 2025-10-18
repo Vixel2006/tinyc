@@ -3,7 +3,6 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum State {
-    Start,
     Identifier,
     Whitespace,
     Symbol,
@@ -16,7 +15,6 @@ enum State {
     SusStr,
     Char,
     Str,
-    Eof,
 }
 
 #[derive(Debug, PartialEq)]
@@ -225,7 +223,6 @@ impl DFA {
     pub fn recognize(&self, input: &str, line: u32, column: u32) -> Token {
         let mut chars = input.chars().peekable();
         let mut buffer = String::new();
-        let mut current_state = State::Start;
 
         let first_char = match chars.peek() {
             Some(&c) => c,
@@ -240,25 +237,25 @@ impl DFA {
             }
         };
 
-        if first_char.is_ascii_alphabetic() {
-            current_state = State::Identifier;
+        let mut current_state = if first_char.is_ascii_alphabetic() {
+            State::Identifier
         } else if first_char.is_ascii_digit() {
-            current_state = State::Integer;
+            State::Integer
         } else if first_char.is_whitespace() {
-            current_state = State::Whitespace;
+            State::Whitespace
         } else if DFA::is_single_quote(first_char) {
-            current_state = State::SusChar;
+            State::SusChar
         } else if DFA::is_double_quote(first_char) {
-            current_state = State::SusStr;
+            State::SusStr
         } else if DFA::is_symbol(first_char) {
-            current_state = State::Symbol;
+            State::Symbol
         } else if DFA::is_operator(first_char) {
-            current_state = State::Operator;
+            State::Operator
         } else if DFA::is_punctuation(first_char) {
-            current_state = State::Punctuation;
+            State::Punctuation
         } else {
-            current_state = State::Error;
-        }
+            State::Error
+        };
 
         buffer.push(chars.next().unwrap());
 
@@ -341,9 +338,7 @@ impl DFA {
                 | State::Char
                 | State::Str
                 | State::Punctuation
-                | State::Error
-                | State::Start
-                | State::Eof => {
+                | State::Error => {
                     break;
                 }
             }
@@ -432,13 +427,6 @@ impl DFA {
                 lexeme: buffer,
                 kind: TokenKind::Unknown,
                 length: token_length,
-                line,
-                column,
-            },
-            _ => Token {
-                lexeme: "".to_string(),
-                kind: TokenKind::Eof,
-                length: 0,
                 line,
                 column,
             },
