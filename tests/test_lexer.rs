@@ -167,7 +167,7 @@ mod lexer_tests {
     #[test]
     fn new_line_increment() {
         let lexer = Lexer::new("first\nsecond\nthird");
-        let mut tokens = lexer.collect::<Vec<_>>();
+        let tokens = lexer.collect::<Vec<_>>();
         // The lexer now skips newlines, but it still tracks line numbers.
         // The Eof token should reflect the line number after all input has been processed.
         // "first" (line 1), "second" (line 2), "third" (line 3), Eof (line 3)

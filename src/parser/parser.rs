@@ -1,6 +1,4 @@
-use super::productions::{
-    BinaryOp, Decls, Expr, FuncDecl, Param, Program, Stmt, Type, UnaryOp, Val, VarDecl,
-};
+use super::productions::{Decls, Expr, FuncDecl, Param, Program, Stmt, Type, Val, VarDecl};
 use crate::lexer::token::{Token, TokenKind};
 
 #[derive(Debug)]
@@ -18,26 +16,48 @@ pub enum ParseError {
     CustomError(String),
 }
 
-pub struct Parser<'a> {
-    tokens: &'a [Token],
-    curr: usize,
-    errors: Vec<ParseError>,
+pub struct Parser {
+    pub tokens: Vec<Token>,
+    pub curr: usize,
+    pub errors: Vec<ParseError>,
 }
 
-impl<'a> Parser<'a> {
-    fn matches(&mut self, kind: TokenKind) -> Result<bool, String> {
+impl Parser {
+    pub fn new(tokens: Vec<Token>) -> Self {
+        Self {
+            tokens: tokens,
+            curr: 0,
+            errors: Vec::new(),
+        }
+    }
+
+    fn consume_if_matches(&mut self, kind: TokenKind) -> bool {
         if self.tokens[self.curr].kind == kind {
             self.consume();
-            Ok(true)
+            true
+        } else {
+            false
+        }
+    }
+
+    fn expect(&mut self, kind: TokenKind, error_message: &str) -> Result<(), String> {
+        if self.tokens[self.curr].kind == kind {
+            self.consume();
+            Ok(())
         } else {
             Err(format!(
-                "Syntax Error: line: {}, col: {}, Expected {:?} but got {:?}",
+                "Syntax Error: line: {}, col: {}, {}. Expected {:?} but got {:?}",
                 self.tokens[self.curr].line,
                 self.tokens[self.curr].column,
+                error_message,
                 kind,
                 self.tokens[self.curr].kind
             ))
         }
+    }
+
+    fn check(&self, kind: TokenKind) -> bool {
+        self.tokens[self.curr].kind == kind
     }
 
     fn advance(&mut self) {
@@ -52,6 +72,10 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn peek(&self) -> TokenKind {
+        self.tokens[self.curr].kind.clone()
+    }
+
     fn match_tokens(&self, kinds: &[TokenKind]) -> bool {
         for kind in kinds {
             if &self.tokens[self.curr].kind == kind {
@@ -61,13 +85,14 @@ impl<'a> Parser<'a> {
         return false;
     }
 
-    fn parse_stmt(&mut self) {}
+    pub fn parse_stmt(&mut self) -> Result<Stmt, String> {}
 
-    fn parse_expr(&mut self) {}
+    pub fn parse_expr(&mut self) -> Result<Expr, String> {
+        Ok(Expr::Value(Val::Integer(0)))
+    }
 
-    fn parse_decl(&mut self) -> Result<Decls, String> {
-        let mut ty: Type;
-        let mut id: Token;
+    pub fn parse_decl(&mut self) -> Result<Decls, String> {
+        let ty: Type;
         if self.match_tokens(&[
             TokenKind::Int,
             TokenKind::Float,
@@ -75,65 +100,85 @@ impl<'a> Parser<'a> {
             TokenKind::Void,
             TokenKind::Char,
         ]) {
-            ty = match self.tokens[self.curr].kind {
+            ty = match &self.tokens[self.curr].kind {
                 TokenKind::Int => Type::Int,
                 TokenKind::Float => Type::Float,
                 TokenKind::Char => Type::Char,
                 TokenKind::Bool => Type::Bool,
                 TokenKind::Void => Type::Void,
-                default => Type::Unknown,
+                _default => Type::Unknown,
             };
             self.consume();
-        }
-
-        if self.matches(TokenKind::Identifier).unwrap() {
-            id = self.tokens[self.curr];
-            self.consume();
-        }
-
-        if self.matches(TokenKind::LeftParen).unwrap() {
-            // Here we go for the func decl shit
-        } else if self.match_tokens(&[TokenKind::SemiColon, TokenKind::Eq]) {
-            // Here we go for the variable decl shit
         } else {
-            // Fuck you stupid pitch (aka. raise an error)
+            return Err(format!(
+                "Unexpected token '{}' at line {}, column {} - expected a data type",
+                self.tokens[self.curr].lexeme,
+                self.tokens[self.curr].line,
+                self.tokens[self.curr].column
+            ));
+        }
+
+        self.expect(TokenKind::Identifier, "expected an identifier")?;
+        let id = self.tokens[self.curr - 1].clone();
+
+        if self.consume_if_matches(TokenKind::LeftParen) {
+            return self.parse_func_decl(ty, id).map(Decls::Func);
+        } else if self.match_tokens(&[TokenKind::SemiColon, TokenKind::Eq]) {
+            return self.parse_var_decl(ty, id).map(Decls::Var);
+        } else {
+            return Err(format!(
+                "Unexpected token '{}' at line {}, column {} — expected '(', ';', or '=' after identifier",
+                self.tokens[self.curr].lexeme,
+                self.tokens[self.curr].line,
+                self.tokens[self.curr].column
+            ));
         }
     }
 
-    fn parse_var_decl(&mut self, ty: Type, id: &Token) -> Result<VarDecl, String> {
-        if self.matches(TokenKind::SemiColon).unwrap() {
+    fn parse_var_decl(&mut self, ty: Type, id: Token) -> Result<VarDecl, String> {
+        if self.consume_if_matches(TokenKind::SemiColon) {
             return Ok(VarDecl {
                 var_type: ty,
                 identifier: id,
                 initializer: None,
             });
-        } else if self.matches(TokenKind::Eq).unwrap() {
-            self.consume();
-            // Here we do some stupid experision parsing
+        } else if self.consume_if_matches(TokenKind::Eq) {
+            let expr = self.parse_expr();
+
+            match expr {
+                Ok(value) => Ok(VarDecl {
+                    var_type: ty,
+                    identifier: id,
+                    initializer: Some(value),
+                }),
+                Err(error) => Err(error),
+            }
+        } else {
+            return Err(format!(
+                "Unexpected token '{}' at line {}, column {} - expected ';' or '=' after identifier",
+                self.tokens[self.curr].lexeme,
+                self.tokens[self.curr].line,
+                self.tokens[self.curr].column,
+            ));
         }
     }
 
-    fn parse_func_decl(&mut self, ty: Type, id: &Token) -> Result<FuncDecl, String> {
+    fn parse_func_decl(&mut self, ty: Type, id: Token) -> Result<FuncDecl, String> {
         let mut params: Vec<Param> = Vec::new();
-        if self.tokens[self.curr].kind != TokenKind::RightParen {
+        if !self.check(TokenKind::RightParen) {
             loop {
-                let param = self.parse_param();
-                params.push(param.unwrap());
-                self.consume();
+                params.push(self.parse_param()?);
 
-                if self.tokens[self.curr].kind == TokenKind::Comma {
-                    self.consume();
+                if self.consume_if_matches(TokenKind::Comma) {
                     continue;
                 } else {
                     break;
                 }
             }
-        } else {
-            self.consume();
         }
+        self.expect(TokenKind::RightParen, "expected ')' after parameters")?;
 
-        if self.match_tokens(&[TokenKind::SemiColon]) {
-            self.consume();
+        if self.consume_if_matches(TokenKind::SemiColon) {
             Ok(FuncDecl {
                 return_type: ty,
                 identifier: id,
@@ -152,7 +197,6 @@ impl<'a> Parser<'a> {
 
     fn parse_param(&mut self) -> Result<Param, String> {
         let ty: Type;
-        let id: &Token;
 
         if self.match_tokens(&[
             TokenKind::Int,
@@ -161,27 +205,48 @@ impl<'a> Parser<'a> {
             TokenKind::Void,
             TokenKind::Char,
         ]) {
-            ty = match self.tokens[self.curr].kind {
+            ty = match &self.tokens[self.curr].kind {
                 TokenKind::Int => Type::Int,
                 TokenKind::Float => Type::Float,
                 TokenKind::Char => Type::Char,
                 TokenKind::Bool => Type::Bool,
                 TokenKind::Void => Type::Void,
-                default => Type::Unknown,
+                _default => Type::Unknown,
             };
             self.consume();
         } else {
-            return Err(format!("not correct parameter"));
+            return Err(format!(
+                "Unexpected token '{}' at line {}, column {} - expected a data type",
+                self.tokens[self.curr].lexeme,
+                self.tokens[self.curr].line,
+                self.tokens[self.curr].column
+            ));
         }
 
-        if self.matches(TokenKind::Identifier).unwrap() {
-            id = &self.tokens[self.curr];
-            self.consume();
-        }
+        self.expect(TokenKind::Identifier, "expected an identifier")?;
+        let id = self.tokens[self.curr - 1].clone();
 
         Ok(Param {
             param_type: ty,
             identifier: id,
         })
+    }
+
+    pub fn parse_program(&mut self) -> Result<Program, String> {
+        let mut decls: Vec<Decls> = Vec::new();
+        loop {
+            let current_kind = self.peek().clone();
+
+            if current_kind == TokenKind::Eof {
+                break;
+            }
+
+            match self.parse_decl() {
+                Ok(decl) => decls.push(decl),
+                Err(e) => return Err(e),
+            }
+        }
+        let declarations = decls.into_iter().map(Stmt::Decl).collect();
+        Ok(Program { declarations })
     }
 }
