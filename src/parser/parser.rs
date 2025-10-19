@@ -1,4 +1,6 @@
-use super::productions::{Decls, Expr, FuncDecl, Param, Program, Stmt, Type, Val, VarDecl};
+use super::productions::{
+    Decls, Expr, FuncDecl, Param, Program, Stmt, Type, UnaryOp, Val, VarDecl,
+};
 use crate::lexer::token::{Token, TokenKind};
 
 #[derive(Debug)]
@@ -85,10 +87,174 @@ impl Parser {
         return false;
     }
 
-    pub fn parse_stmt(&mut self) -> Result<Stmt, String> {}
+    // pub fn parse_stmt(&mut self) -> Result<Stmt, String> {}
+
+    pub fn parse_primary_expr(&mut self) -> Result<Expr, String> {
+        if self.match_tokens(&[
+            TokenKind::Integer,
+            TokenKind::Decimal,
+            TokenKind::Character,
+            TokenKind::True,
+            TokenKind::False,
+        ]) {
+            return self.parse_value();
+        } else if self.check(TokenKind::Identifier) {
+            return self.parse_identifier_expr();
+        } else if self.check(TokenKind::LeftParen) {
+            self.consume(); // Consume '('
+            let expr = self.parse_expr()?; // Recursively parse the expression inside parentheses
+            self.expect(TokenKind::RightParen, "Expected ')' after expression")?;
+            return Ok(Expr::Paren(Box::new(expr)));
+        } else {
+            Err(format!(
+                "Syntax Error: line {}, column {}. Expected identifier, literal, or '(' but found {}",
+                self.tokens[self.curr].line,
+                self.tokens[self.curr].column,
+                self.tokens[self.curr].lexeme,
+            ))
+        }
+    }
+
+    pub fn parse_equality_expr(&mut self) -> Result<Expr, String> {
+        let mut expr = self.parse_comparison_expr()?;
+
+        while self.match_tokens(&[TokenKind::IsEq, TokenKind::NotEq]) {
+            let operator_token = self.tokens[self.curr].clone();
+            self.consume();
+            let right = self.parse_comparison_expr()?;
+            let op = match operator_token.kind {
+                TokenKind::IsEq => super::productions::BinaryOp::Equal,
+                TokenKind::NotEq => super::productions::BinaryOp::NotEqual,
+                _ => unreachable!(),
+            };
+            expr = Expr::Binary(Box::new(expr), op, Box::new(right));
+        }
+
+        Ok(expr)
+    }
+
+    pub fn parse_comparison_expr(&mut self) -> Result<Expr, String> {
+        let mut expr = self.parse_additive_expr()?;
+
+        while self.match_tokens(&[
+            TokenKind::Greater,
+            TokenKind::GEq,
+            TokenKind::Less,
+            TokenKind::LEq,
+        ]) {
+            let operator_token = self.tokens[self.curr].clone();
+            self.consume();
+            let right = self.parse_additive_expr()?;
+            let op = match operator_token.kind {
+                TokenKind::Greater => super::productions::BinaryOp::Greater,
+                TokenKind::GEq => super::productions::BinaryOp::GreaterEqual,
+                TokenKind::Less => super::productions::BinaryOp::Less,
+                TokenKind::LEq => super::productions::BinaryOp::LessEqual,
+                _ => unreachable!(),
+            };
+            expr = Expr::Binary(Box::new(expr), op, Box::new(right));
+        }
+
+        Ok(expr)
+    }
+
+    pub fn parse_additive_expr(&mut self) -> Result<Expr, String> {
+        let mut expr = self.parse_multiplicative_expr()?;
+
+        while self.match_tokens(&[TokenKind::Plus, TokenKind::Minus]) {
+            let operator_token = self.tokens[self.curr].clone();
+            self.consume();
+            let right = self.parse_multiplicative_expr()?;
+            let op = match operator_token.kind {
+                TokenKind::Plus => super::productions::BinaryOp::Add,
+                TokenKind::Minus => super::productions::BinaryOp::Sub,
+                _ => unreachable!(),
+            };
+            expr = Expr::Binary(Box::new(expr), op, Box::new(right));
+        }
+
+        Ok(expr)
+    }
+
+    pub fn parse_multiplicative_expr(&mut self) -> Result<Expr, String> {
+        let mut expr = self.parse_unary_expr()?;
+
+        while self.match_tokens(&[TokenKind::Multiply, TokenKind::Div]) {
+            let operator_token = self.tokens[self.curr].clone();
+            self.consume();
+            let right = self.parse_unary_expr()?;
+            let op = match operator_token.kind {
+                TokenKind::Multiply => super::productions::BinaryOp::Mult,
+                TokenKind::Div => super::productions::BinaryOp::Div,
+                _ => unreachable!(),
+            };
+            expr = Expr::Binary(Box::new(expr), op, Box::new(right));
+        }
+
+        Ok(expr)
+    }
+
+    pub fn parse_unary_expr(&mut self) -> Result<Expr, String> {
+        if self.match_tokens(&[
+            TokenKind::Minus,
+            TokenKind::LogicalNot,
+            TokenKind::BitwiseNot,
+        ]) {
+            let operator_token = self.tokens[self.curr].clone();
+            self.consume();
+            let right = self.parse_unary_expr()?; // Unary operators are right-associative
+            let op = match operator_token.kind {
+                TokenKind::Minus => UnaryOp::Negate,
+                TokenKind::LogicalNot => UnaryOp::LogicalNot,
+                TokenKind::BitwiseNot => UnaryOp::BitwiseNot,
+                _ => unreachable!(),
+            };
+            Ok(Expr::Unary(op, Box::new(right)))
+        } else {
+            self.parse_primary_expr()
+        }
+    }
+
+    pub fn parse_value(&mut self) -> Result<Expr, String> {
+        let tok = self.tokens[self.curr].clone();
+        let val = match tok.kind {
+            TokenKind::Integer => tok.lexeme.parse::<i32>().map(Val::Integer).map_err(|_| {
+                format!(
+                    "invalid integer literal '{}' at line {}",
+                    tok.lexeme, tok.line
+                )
+            })?,
+            TokenKind::Decimal => tok.lexeme.parse::<f32>().map(Val::Float).map_err(|_| {
+                format!(
+                    "invalid float literal '{}' at line {}",
+                    tok.lexeme, tok.line
+                )
+            })?,
+            TokenKind::Character => tok.lexeme.parse::<char>().map(Val::Char).map_err(|_| {
+                format!("invalid char literal '{}' at line {}", tok.lexeme, tok.line)
+            })?,
+            TokenKind::True => Val::Bool(true),
+            TokenKind::False => Val::Bool(false),
+            _ => {
+                return Err(format!(
+                    "Unexpected token '{}' where a literal was expected at line {}",
+                    tok.lexeme, tok.line
+                ));
+            }
+        };
+
+        self.consume();
+        Ok(Expr::Value(val))
+    }
 
     pub fn parse_expr(&mut self) -> Result<Expr, String> {
-        Ok(Expr::Value(Val::Integer(0)))
+        self.parse_equality_expr()
+    }
+
+    pub fn parse_identifier_expr(&mut self) -> Result<Expr, String> {
+        let identifier_token = self.tokens[self.curr].clone();
+        self.consume();
+        Ok(Expr::Identifier(identifier_token))
     }
 
     pub fn parse_decl(&mut self) -> Result<Decls, String> {
@@ -106,7 +272,7 @@ impl Parser {
                 TokenKind::Char => Type::Char,
                 TokenKind::Bool => Type::Bool,
                 TokenKind::Void => Type::Void,
-                _default => Type::Unknown,
+                _ => Type::Unknown,
             };
             self.consume();
         } else {
@@ -143,16 +309,12 @@ impl Parser {
                 initializer: None,
             });
         } else if self.consume_if_matches(TokenKind::Eq) {
-            let expr = self.parse_expr();
-
-            match expr {
-                Ok(value) => Ok(VarDecl {
-                    var_type: ty,
-                    identifier: id,
-                    initializer: Some(value),
-                }),
-                Err(error) => Err(error),
-            }
+            let expr = self.parse_expr()?;
+            Ok(VarDecl {
+                var_type: ty,
+                identifier: id,
+                initializer: Some(expr),
+            })
         } else {
             return Err(format!(
                 "Unexpected token '{}' at line {}, column {} - expected ';' or '=' after identifier",
@@ -211,7 +373,7 @@ impl Parser {
                 TokenKind::Char => Type::Char,
                 TokenKind::Bool => Type::Bool,
                 TokenKind::Void => Type::Void,
-                _default => Type::Unknown,
+                _ => Type::Unknown,
             };
             self.consume();
         } else {

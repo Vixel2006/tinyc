@@ -2,9 +2,9 @@
 mod parser_tests {
 
     use tinyc::lexer::lexer::Lexer;
-    use tinyc::lexer::token::Token;
+    use tinyc::lexer::token::{Token, TokenKind};
     use tinyc::parser::parser::Parser;
-    use tinyc::parser::productions::{Decls, Type};
+    use tinyc::parser::productions::{Decls, Type, Expr, Val, UnaryOp, BinaryOp};
 
     // Helper function to create a parser from a source string
     fn setup_parser(input: &str) -> (Parser, Vec<Token>) {
@@ -111,6 +111,182 @@ mod parser_tests {
                 assert_eq!(var_decl.identifier.lexeme, "y");
             }
             _ => panic!("Expected a variable declaration"),
+        }
+    }
+
+    #[test]
+    fn test_variable_to_value_assignment_experssion() {
+        let input = "int x = 0;";
+        let (mut parser, _tokens) = setup_parser(input);
+
+        let result = parser.parse_decl();
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Decls::Var(var_decl) => {
+                assert_eq!(var_decl.var_type, Type::Int);
+                assert_eq!(var_decl.identifier.lexeme, "x");
+                assert!(var_decl.initializer.is_some());
+                match var_decl.initializer.unwrap() {
+                    Expr::Value(Val::Integer(val)) => assert_eq!(val, 0),
+                    _ => panic!("Expected an integer initializer"),
+                }
+            }
+            _ => panic!("Expected a variable initialization"),
+        }
+    }
+
+    #[test]
+    fn test_unary_and_paren_expressions() {
+        let input = "int x = -(a + !b);";
+        let (mut parser, _tokens) = setup_parser(input);
+
+        let result = parser.parse_decl();
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Decls::Var(var_decl) => {
+                assert_eq!(var_decl.var_type, Type::Int);
+                assert_eq!(var_decl.identifier.lexeme, "x");
+                assert!(var_decl.initializer.is_some());
+
+                let initializer_expr = var_decl.initializer.unwrap();
+                match initializer_expr {
+                    Expr::Unary(op1, inner_expr1) => {
+                        assert_eq!(op1, UnaryOp::Negate);
+                        match *inner_expr1 {
+                            Expr::Paren(inner_expr2) => {
+                                match *inner_expr2 {
+                                    Expr::Binary(left, op2, right) => {
+                                        assert_eq!(op2, BinaryOp::Add);
+                                        match *left {
+                                            Expr::Identifier(id_token_a) => {
+                                                assert_eq!(id_token_a.lexeme, "a");
+                                                assert_eq!(id_token_a.kind, TokenKind::Identifier);
+                                            },
+                                            _ => panic!("Expected identifier 'a'"),
+                                        }
+                                        match *right {
+                                            Expr::Unary(op3, inner_expr3) => {
+                                                assert_eq!(op3, UnaryOp::LogicalNot);
+                                                match *inner_expr3 {
+                                                    Expr::Identifier(id_token_b) => {
+                                                        assert_eq!(id_token_b.lexeme, "b");
+                                                        assert_eq!(id_token_b.kind, TokenKind::Identifier);
+                                                    },
+                                                    _ => panic!("Expected identifier 'b'"),
+                                                }
+                                            },
+                                            _ => panic!("Expected unary logical NOT expression"),
+                                        }
+                                    },
+                                    _ => panic!("Expected binary ADD expression"),
+                                }
+                            },
+                            _ => panic!("Expected parenthesized expression"),
+                        }
+                    },
+                    _ => panic!("Expected unary NEGATE expression"),
+                }
+            }
+            _ => panic!("Expected a variable initialization"),
+        }
+    }
+
+    #[test]
+    fn test_binary_expression_precedence() {
+        let input = "int x = a * b + c;";
+        let (mut parser, _tokens) = setup_parser(input);
+
+        let result = parser.parse_decl();
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Decls::Var(var_decl) => {
+                assert_eq!(var_decl.var_type, Type::Int);
+                assert_eq!(var_decl.identifier.lexeme, "x");
+                assert!(var_decl.initializer.is_some());
+
+                let initializer_expr = var_decl.initializer.unwrap();
+                match initializer_expr {
+                    Expr::Binary(left_add, op_add, right_add) => {
+                        assert_eq!(op_add, BinaryOp::Add);
+                        // Left side of ADD should be a * b
+                        match *left_add {
+                            Expr::Binary(left_mult, op_mult, right_mult) => {
+                                assert_eq!(op_mult, BinaryOp::Mult);
+                                match *left_mult {
+                                    Expr::Identifier(id_token_a) => {
+                                        assert_eq!(id_token_a.lexeme, "a");
+                                        assert_eq!(id_token_a.kind, TokenKind::Identifier);
+                                    },
+                                    _ => panic!("Expected identifier 'a'"),
+                                }
+                                match *right_mult {
+                                    Expr::Identifier(id_token_b) => {
+                                        assert_eq!(id_token_b.lexeme, "b");
+                                        assert_eq!(id_token_b.kind, TokenKind::Identifier);
+                                    },
+                                    _ => panic!("Expected identifier 'b'"),
+                                }
+                            },
+                            _ => panic!("Expected binary MULT expression"),
+                        }
+                        // Right side of ADD should be c
+                        match *right_add {
+                            Expr::Identifier(id_token_c) => {
+                                assert_eq!(id_token_c.lexeme, "c");
+                                assert_eq!(id_token_c.kind, TokenKind::Identifier);
+                            },
+                            _ => panic!("Expected identifier 'c'"),
+                        }
+                    },
+                    _ => panic!("Expected binary ADD expression as top-level"),
+                }
+            }
+            _ => panic!("Expected a variable initialization"),
+        }
+    }
+
+    #[test]
+    fn test_binary_expression_precedence_with_literals() {
+        let input = "int a = 10 * 2 + 3;";
+        let (mut parser, _tokens) = setup_parser(input);
+
+        let result = parser.parse_decl();
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Decls::Var(var_decl) => {
+                assert_eq!(var_decl.var_type, Type::Int);
+                assert_eq!(var_decl.identifier.lexeme, "a");
+                assert!(var_decl.initializer.is_some());
+
+                let initializer_expr = var_decl.initializer.unwrap();
+                match initializer_expr {
+                    Expr::Binary(left_add, op_add, right_add) => {
+                        assert_eq!(op_add, BinaryOp::Add);
+                        // Left side of ADD should be 10 * 2
+                        match *left_add {
+                            Expr::Binary(left_mult, op_mult, right_mult) => {
+                                assert_eq!(op_mult, BinaryOp::Mult);
+                                match *left_mult {
+                                    Expr::Value(Val::Integer(val)) => assert_eq!(val, 10),
+                                    _ => panic!("Expected integer literal 10"),
+                                }
+                                match *right_mult {
+                                    Expr::Value(Val::Integer(val)) => assert_eq!(val, 2),
+                                    _ => panic!("Expected integer literal 2"),
+                                }
+                            },
+                            _ => panic!("Expected binary MULT expression"),
+                        }
+                        // Right side of ADD should be 3
+                        match *right_add {
+                            Expr::Value(Val::Integer(val)) => assert_eq!(val, 3),
+                            _ => panic!("Expected integer literal 3"),
+                        }
+                    },
+                    _ => panic!("Expected binary ADD expression as top-level"),
+                }
+            }
+            _ => panic!("Expected a variable initialization"),
         }
     }
 }
