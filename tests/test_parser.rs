@@ -4,9 +4,8 @@ mod parser_tests {
     use tinyc::lexer::lexer::Lexer;
     use tinyc::lexer::token::{Token, TokenKind};
     use tinyc::parser::parser::Parser;
-    use tinyc::parser::productions::{Decls, Type, Expr, Val, UnaryOp, BinaryOp};
+    use tinyc::parser::productions::{BinaryOp, Decls, Expr, Stmt, Type, UnaryOp, Val};
 
-    // Helper function to create a parser from a source string
     fn setup_parser(input: &str) -> (Parser, Vec<Token>) {
         let lexer = Lexer::new(input);
         let tokens: Vec<Token> = lexer.collect();
@@ -153,37 +152,38 @@ mod parser_tests {
                     Expr::Unary(op1, inner_expr1) => {
                         assert_eq!(op1, UnaryOp::Negate);
                         match *inner_expr1 {
-                            Expr::Paren(inner_expr2) => {
-                                match *inner_expr2 {
-                                    Expr::Binary(left, op2, right) => {
-                                        assert_eq!(op2, BinaryOp::Add);
-                                        match *left {
-                                            Expr::Identifier(id_token_a) => {
-                                                assert_eq!(id_token_a.lexeme, "a");
-                                                assert_eq!(id_token_a.kind, TokenKind::Identifier);
-                                            },
-                                            _ => panic!("Expected identifier 'a'"),
+                            Expr::Paren(inner_expr2) => match *inner_expr2 {
+                                Expr::Binary(left, op2, right) => {
+                                    assert_eq!(op2, BinaryOp::Add);
+                                    match *left {
+                                        Expr::Identifier(id_token_a) => {
+                                            assert_eq!(id_token_a.lexeme, "a");
+                                            assert_eq!(id_token_a.kind, TokenKind::Identifier);
                                         }
-                                        match *right {
-                                            Expr::Unary(op3, inner_expr3) => {
-                                                assert_eq!(op3, UnaryOp::LogicalNot);
-                                                match *inner_expr3 {
-                                                    Expr::Identifier(id_token_b) => {
-                                                        assert_eq!(id_token_b.lexeme, "b");
-                                                        assert_eq!(id_token_b.kind, TokenKind::Identifier);
-                                                    },
-                                                    _ => panic!("Expected identifier 'b'"),
+                                        _ => panic!("Expected identifier 'a'"),
+                                    }
+                                    match *right {
+                                        Expr::Unary(op3, inner_expr3) => {
+                                            assert_eq!(op3, UnaryOp::LogicalNot);
+                                            match *inner_expr3 {
+                                                Expr::Identifier(id_token_b) => {
+                                                    assert_eq!(id_token_b.lexeme, "b");
+                                                    assert_eq!(
+                                                        id_token_b.kind,
+                                                        TokenKind::Identifier
+                                                    );
                                                 }
-                                            },
-                                            _ => panic!("Expected unary logical NOT expression"),
+                                                _ => panic!("Expected identifier 'b'"),
+                                            }
                                         }
-                                    },
-                                    _ => panic!("Expected binary ADD expression"),
+                                        _ => panic!("Expected unary logical NOT expression"),
+                                    }
                                 }
+                                _ => panic!("Expected binary ADD expression"),
                             },
                             _ => panic!("Expected parenthesized expression"),
                         }
-                    },
+                    }
                     _ => panic!("Expected unary NEGATE expression"),
                 }
             }
@@ -216,17 +216,17 @@ mod parser_tests {
                                     Expr::Identifier(id_token_a) => {
                                         assert_eq!(id_token_a.lexeme, "a");
                                         assert_eq!(id_token_a.kind, TokenKind::Identifier);
-                                    },
+                                    }
                                     _ => panic!("Expected identifier 'a'"),
                                 }
                                 match *right_mult {
                                     Expr::Identifier(id_token_b) => {
                                         assert_eq!(id_token_b.lexeme, "b");
                                         assert_eq!(id_token_b.kind, TokenKind::Identifier);
-                                    },
+                                    }
                                     _ => panic!("Expected identifier 'b'"),
                                 }
-                            },
+                            }
                             _ => panic!("Expected binary MULT expression"),
                         }
                         // Right side of ADD should be c
@@ -234,10 +234,10 @@ mod parser_tests {
                             Expr::Identifier(id_token_c) => {
                                 assert_eq!(id_token_c.lexeme, "c");
                                 assert_eq!(id_token_c.kind, TokenKind::Identifier);
-                            },
+                            }
                             _ => panic!("Expected identifier 'c'"),
                         }
-                    },
+                    }
                     _ => panic!("Expected binary ADD expression as top-level"),
                 }
             }
@@ -274,7 +274,7 @@ mod parser_tests {
                                     Expr::Value(Val::Integer(val)) => assert_eq!(val, 2),
                                     _ => panic!("Expected integer literal 2"),
                                 }
-                            },
+                            }
                             _ => panic!("Expected binary MULT expression"),
                         }
                         // Right side of ADD should be 3
@@ -282,11 +282,234 @@ mod parser_tests {
                             Expr::Value(Val::Integer(val)) => assert_eq!(val, 3),
                             _ => panic!("Expected integer literal 3"),
                         }
-                    },
+                    }
                     _ => panic!("Expected binary ADD expression as top-level"),
                 }
             }
             _ => panic!("Expected a variable initialization"),
         }
     }
+
+    #[test]
+    fn test_if_statement() {
+        let input = "if (true) { int x; }";
+        let (mut parser, _tokens) = setup_parser(input);
+        let result = parser.parse_stmt();
+
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Stmt::If(condition, body, else_branch) => {
+                assert_eq!(condition, Expr::Value(Val::Bool(true)));
+                assert_eq!(body.len(), 1);
+                assert!(else_branch.is_none());
+
+                match &body[0] {
+                    Stmt::Decl(Decls::Var(var_decl)) => {
+                        assert_eq!(var_decl.var_type, Type::Int);
+                        assert_eq!(var_decl.identifier.lexeme, "x");
+                    }
+                    _ => panic!("Expected variable declaration in if body"),
+                }
+            }
+            _ => panic!("Expected an if statement"),
+        }
+    }
+
+    #[test]
+    fn test_if_else_statement() {
+        let input = "if (false) { } else { float y; }";
+        let (mut parser, _tokens) = setup_parser(input);
+        let result = parser.parse_stmt();
+
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Stmt::If(condition, body, else_branch) => {
+                assert_eq!(condition, Expr::Value(Val::Bool(false)));
+                assert!(body.is_empty());
+                assert!(else_branch.is_some());
+
+                let else_body = else_branch.unwrap();
+                assert_eq!(else_body.len(), 1);
+                match &else_body[0] {
+                    Stmt::Decl(Decls::Var(var_decl)) => {
+                        assert_eq!(var_decl.var_type, Type::Float);
+                        assert_eq!(var_decl.identifier.lexeme, "y");
+                    }
+                    _ => panic!("Expected variable declaration in else body"),
+                }
+            }
+            _ => panic!("Expected an if-else statement"),
+        }
+    }
+
+    #[test]
+    fn test_if_else_if_statement() {
+        let input = "if (a) { } else if (b) { }";
+        let (mut parser, _tokens) = setup_parser(input);
+        let result = parser.parse_stmt();
+
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Stmt::If(condition, body, else_branch) => {
+                assert_eq!(
+                    condition,
+                    Expr::Identifier(Token {
+                        kind: TokenKind::Identifier,
+                        lexeme: "a".to_string(),
+                        line: 1,
+                        column: 5,
+                        length: 1,
+                    })
+                );
+                assert!(body.is_empty());
+                assert!(else_branch.is_some());
+
+                let else_body = else_branch.unwrap();
+                assert_eq!(else_body.len(), 1);
+                match &else_body[0] {
+                    Stmt::If(else_if_condition, else_if_body, else_if_else_branch) => {
+                        assert_eq!(
+                            *else_if_condition,
+                            Expr::Identifier(Token {
+                                kind: TokenKind::Identifier,
+                                lexeme: "b".to_string(),
+                                line: 1,
+                                column: 21,
+                                length: 1,
+                            })
+                        );
+                        assert!(else_if_body.is_empty());
+                        assert!(else_if_else_branch.is_none());
+                    }
+                    _ => panic!("Expected else-if statement"),
+                }
+            }
+            _ => panic!("Expected an if-else-if statement"),
+        }
+    }
+
+    #[test]
+    fn test_while_statement() {
+        let input = "while (x < 10) { x = x + 1; }";
+        let (mut parser, _tokens) = setup_parser(input);
+        let result = parser.parse_stmt();
+
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Stmt::While(condition, body) => {
+                assert_eq!(
+                    condition,
+                    Expr::Binary(
+                        Box::new(Expr::Identifier(Token {
+                            kind: TokenKind::Identifier,
+                            lexeme: "x".to_string(),
+                            line: 1,
+                            column: 8,
+                            length: 1,
+                        })),
+                        BinaryOp::Less,
+                        Box::new(Expr::Value(Val::Integer(10)))
+                    )
+                );
+                assert_eq!(body.len(), 1);
+                // Further assertions for the body can be added if needed
+            }
+            _ => panic!("Expected a while statement"),
+        }
+    }
+
+    #[test]
+    fn test_return_statement_with_expression() {
+        let input = "return 0;";
+        let (mut parser, _tokens) = setup_parser(input);
+        let result = parser.parse_stmt();
+
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Stmt::Return(Some(expr)) => {
+                assert_eq!(expr, Expr::Value(Val::Integer(0)));
+            }
+            _ => panic!("Expected a return statement with an expression"),
+        }
+    }
+
+    #[test]
+    fn test_return_statement_without_expression() {
+        let input = "return;";
+        let (mut parser, _tokens) = setup_parser(input);
+        let result = parser.parse_stmt();
+
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Stmt::Return(None) => {}
+            _ => panic!("Expected a return statement without an expression"),
+        }
+    }
+
+    #[test]
+    fn test_block_statement() {
+        let input = "{ int a; float b = 1.0; }";
+        let (mut parser, _tokens) = setup_parser(input);
+        let result = parser.parse_stmt();
+
+        assert!(result.is_ok());
+        match result.unwrap() {
+            Stmt::Block(statements) => {
+                assert_eq!(statements.len(), 2);
+                // Further assertions for the statements within the block can be added
+            }
+            _ => panic!("Expected a block statement"),
+        }
+    }
+
+    #[test]
+    fn test_full_program_parsing() {
+        let input = "
+            int main() {
+                int x = 0;
+                if (x == 0) {
+                    return 1;
+                } else {
+                    while (x < 5) {
+                        x = x + 1;
+                    }
+                    return 0;
+                }
+            }
+
+            void foo(int a, float b);
+            float global_var = 3.14;
+        ";
+        let (mut parser, _tokens) = setup_parser(input);
+        let result = parser.parse_program();
+
+        assert!(result.is_ok());
+        let program = result.unwrap();
+        assert_eq!(program.declarations.len(), 3); // main function, foo declaration, global_var
+
+        match &program.declarations[0] {
+            Stmt::Decl(Decls::Func(func_decl)) => {
+                assert_eq!(func_decl.identifier.lexeme, "main");
+                assert!(func_decl.body.is_some());
+            }
+            _ => panic!("Expected main function declaration"),
+        }
+
+        match &program.declarations[1] {
+            Stmt::Decl(Decls::Func(func_decl)) => {
+                assert_eq!(func_decl.identifier.lexeme, "foo");
+                assert!(func_decl.body.is_none());
+            }
+            _ => panic!("Expected foo function declaration"),
+        }
+
+        match &program.declarations[2] {
+            Stmt::Decl(Decls::Var(var_decl)) => {
+                assert_eq!(var_decl.identifier.lexeme, "global_var");
+                assert!(var_decl.initializer.is_some());
+            }
+            _ => panic!("Expected global_var declaration"),
+        }
+    }
 }
+
