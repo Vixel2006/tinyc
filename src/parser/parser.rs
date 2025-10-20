@@ -87,7 +87,101 @@ impl Parser {
         return false;
     }
 
-    // pub fn parse_stmt(&mut self) -> Result<Stmt, String> {}
+    pub fn parse_stmt(&mut self) -> Result<Stmt, String> {
+        let stmt: Stmt;
+
+        if self.consume_if_matches(TokenKind::If) {
+            stmt = self.parse_if_stmt()?;
+        } else if self.consume_if_matches(TokenKind::While) {
+            stmt = self.parse_while_stmt()?;
+        } else if self.consume_if_matches(TokenKind::Return) {
+            stmt = self.parse_return_stmt()?;
+        } else if self.check(TokenKind::LeftCurly) {
+            stmt = self.parse_block_stmt()?;
+        } else if self.match_tokens(&[
+            TokenKind::Int,
+            TokenKind::Float,
+            TokenKind::Bool,
+            TokenKind::Void,
+            TokenKind::Char,
+        ]) {
+            stmt = Stmt::Decl(self.parse_decl()?);
+        } else {
+            let expr = self.parse_expr()?;
+            self.expect(
+                TokenKind::SemiColon,
+                "Expected ';' after expression statement",
+            )?;
+            stmt = Stmt::Expr(expr);
+        }
+
+        Ok(stmt)
+    }
+
+    pub fn parse_if_stmt(&mut self) -> Result<Stmt, String> {
+        self.expect(TokenKind::LeftParen, "Expected '(' after 'if'")?;
+        let condition: Expr = self.parse_expr()?;
+        self.expect(TokenKind::RightParen, "Expected ')' after if condition")?;
+        let if_body_stmt = self.parse_block_stmt()?;
+        let body_stmts = if let Stmt::Block(stmts) = if_body_stmt {
+            stmts
+        } else {
+            return Err("Expected a block statement for if branch".to_string());
+        };
+
+        let mut else_branch: Option<Vec<Stmt>> = None;
+
+        if self.consume_if_matches(TokenKind::Else) {
+            if self.consume_if_matches(TokenKind::If) {
+                else_branch = Some(vec![self.parse_if_stmt()?]);
+            } else {
+                let else_body_stmt = self.parse_block_stmt()?;
+                if let Stmt::Block(stmts) = else_body_stmt {
+                    else_branch = Some(stmts);
+                } else {
+                    return Err("Expected a block statement for else branch".to_string());
+                }
+            }
+        }
+
+        Ok(Stmt::If(condition, body_stmts, else_branch))
+    }
+
+    pub fn parse_while_stmt(&mut self) -> Result<Stmt, String> {
+        self.expect(TokenKind::LeftParen, "Expected '(' after 'while'")?;
+        let condition: Expr = self.parse_expr()?;
+        self.expect(TokenKind::RightParen, "Expected ')' after while condition")?;
+        let body_stmt = self.parse_block_stmt()?;
+        let body_stmts = if let Stmt::Block(stmts) = body_stmt {
+            stmts
+        } else {
+            return Err("Expected a block statement for while body".to_string());
+        };
+
+        Ok(Stmt::While(condition, body_stmts))
+    }
+
+    pub fn parse_return_stmt(&mut self) -> Result<Stmt, String> {
+        let expr: Option<Expr> = if self.peek() != TokenKind::SemiColon {
+            Some(self.parse_expr()?)
+        } else {
+            None
+        };
+        self.expect(TokenKind::SemiColon, "Expected ';' after return statement")?;
+        Ok(Stmt::Return(expr))
+    }
+
+    pub fn parse_block_stmt(&mut self) -> Result<Stmt, String> {
+        self.expect(TokenKind::LeftCurly, "Expected '{' to start a block")?;
+        let mut statements: Vec<Stmt> = Vec::new();
+
+        while self.peek() != TokenKind::RightCurly && self.peek() != TokenKind::Eof {
+            statements.push(self.parse_stmt()?);
+        }
+
+        self.expect(TokenKind::RightCurly, "Expected '}' to end a block")?;
+        Ok(Stmt::Block(statements))
+    }
 
     pub fn parse_primary_expr(&mut self) -> Result<Expr, String> {
         if self.match_tokens(&[
@@ -101,8 +195,8 @@ impl Parser {
         } else if self.check(TokenKind::Identifier) {
             return self.parse_identifier_expr();
         } else if self.check(TokenKind::LeftParen) {
-            self.consume(); // Consume '('
-            let expr = self.parse_expr()?; // Recursively parse the expression inside parentheses
+            self.consume();
+            let expr = self.parse_expr()?;
             self.expect(TokenKind::RightParen, "Expected ')' after expression")?;
             return Ok(Expr::Paren(Box::new(expr)));
         } else {
@@ -202,7 +296,7 @@ impl Parser {
         ]) {
             let operator_token = self.tokens[self.curr].clone();
             self.consume();
-            let right = self.parse_unary_expr()?; // Unary operators are right-associative
+            let right = self.parse_unary_expr()?;
             let op = match operator_token.kind {
                 TokenKind::Minus => UnaryOp::Negate,
                 TokenKind::LogicalNot => UnaryOp::LogicalNot,
@@ -247,8 +341,26 @@ impl Parser {
         Ok(Expr::Value(val))
     }
 
+    pub fn parse_assignment_expr(&mut self) -> Result<Expr, String> {
+        let expr = self.parse_equality_expr()?;
+
+        if self.consume_if_matches(TokenKind::Eq) {
+            let value = self.parse_assignment_expr()?;
+            if let Expr::Identifier(id_token) = expr {
+                Ok(Expr::Assign(id_token, Box::new(value)))
+            } else {
+                return Err(format!(
+                    "Syntax Error: line {}, column {}. Invalid assignment target",
+                    self.tokens[self.curr].line, self.tokens[self.curr].column,
+                ));
+            }
+        } else {
+            Ok(expr)
+        }
+    }
+
     pub fn parse_expr(&mut self) -> Result<Expr, String> {
-        self.parse_equality_expr()
+        self.parse_assignment_expr()
     }
 
     pub fn parse_identifier_expr(&mut self) -> Result<Expr, String> {
@@ -310,6 +422,10 @@ impl Parser {
             });
         } else if self.consume_if_matches(TokenKind::Eq) {
             let expr = self.parse_expr()?;
+            self.expect(
+                TokenKind::SemiColon,
+                "Expected ';' after variable declaration",
+            )?;
             Ok(VarDecl {
                 var_type: ty,
                 identifier: id,
@@ -340,21 +456,30 @@ impl Parser {
         }
         self.expect(TokenKind::RightParen, "expected ')' after parameters")?;
 
-        if self.consume_if_matches(TokenKind::SemiColon) {
-            Ok(FuncDecl {
-                return_type: ty,
-                identifier: id,
-                params: params,
-                body: None,
-            })
+        let body: Option<Vec<Stmt>> = if self.check(TokenKind::LeftCurly) {
+            let block_stmt = self.parse_block_stmt()?;
+            if let Stmt::Block(stmts) = block_stmt {
+                Some(stmts)
+            } else {
+                return Err("Expected a block statement for function body".to_string());
+            }
+        } else if self.consume_if_matches(TokenKind::SemiColon) {
+            None
         } else {
-            Ok(FuncDecl {
-                return_type: ty,
-                identifier: id,
-                params,
-                body: None,
-            })
-        }
+            return Err(format!(
+                "Unexpected token '{}' at line {}, column {} - expected '{{' or ';' after function declaration",
+                self.tokens[self.curr].lexeme,
+                self.tokens[self.curr].line,
+                self.tokens[self.curr].column
+            ));
+        };
+
+        Ok(FuncDecl {
+            return_type: ty,
+            identifier: id,
+            params: params,
+            body: body,
+        })
     }
 
     fn parse_param(&mut self) -> Result<Param, String> {
