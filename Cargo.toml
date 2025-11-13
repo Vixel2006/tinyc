@@ -1,13 +1,12 @@
 [package]
 name = "tinyc"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [[bin]]
-name = "debug"
+name = "tinyc"
 path = "src/main.rs"
 
 [dependencies]
-inkwell = "0.5.0"
-llvm-sys = "211.0.0"
+inkwell = { version = "0.7.0", features = ["llvm21-1"] }
 regex = "1.10.0"
