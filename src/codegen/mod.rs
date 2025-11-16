@@ -1,4 +1,4 @@
 pub mod context;
+pub mod decl;
 pub mod expr;
-pub mod function;
 pub mod stmt;
