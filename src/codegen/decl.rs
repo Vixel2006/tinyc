@@ -32,6 +32,6 @@ impl VarDecl {
 
         generator
             .variables
-            .insert(self.identifier.lexeme.clone(), alloca);
+            .insert(self.identifier.lexeme.clone(), (alloca, self.var_type.clone()));
     }
 }
