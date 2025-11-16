@@ -35,7 +35,7 @@ cargo build
 To run the compiler (e.g., with a test file):
 
 ```bash
-cargo run -- <input_file.c>
+cargo run -- <input_file.tinyc>
 ```
 
 To run the tests:
