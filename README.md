@@ -1,45 +1,59 @@
 # tinyc - A Small C Compiler
 
-`tinyc` is a small C compiler written in Rust. The goal of this project is to build a complete compiler toolchain, starting from lexical analysis and parsing, and eventually incorporating advanced optimizations and code generation using LLVM and potentially MLIR.
+`tinyc` is a small C compiler written in Rust. It uses LLVM 21 for code generation and optimization.
 
 ## Project Structure
 
-The project is organized into the following main components:
-
--   **`src/lexer`**: Handles the lexical analysis phase, breaking down source code into tokens.
--   **`src/parser`**: Implements the parsing phase, constructing an Abstract Syntax Tree (AST) from the tokens.
--   **`src/codegen`**: (Future) Will contain the code generation logic.
+- **`src/lexer`** — Lexical analysis: breaks source code into tokens.
+- **`src/parser`** — Parsing: constructs an AST from tokens.
+- **`src/codegen`** — LLVM IR code generation, optimization, and AOT compilation.
 
 ## Current Status
 
-Currently, the project includes a functional lexer and parser capable of processing a subset of the C language.
+The compiler supports:
+- **Lexer** — Keywords, identifiers, integer/float/bool/char literals, all standard operators, and accurate line/column tracking.
+- **Parser** — Recursive-descent parser with correct operator precedence. Supports variable/function declarations, if/else, while loops, return, blocks, and nested expressions.
+- **Codegen** — Full LLVM IR generation for all AST nodes including arithmetic, comparisons, assignments, if/else, while loops, and function definitions.
+- **Optimization** — Runs the LLVM O3 pass pipeline (mem2reg, inlining, GVN, instcombine, loop optimizations, etc.).
+- **AOT Compilation** — Compiles source to a native executable via LLVM object file emission and system linker.
 
-## Future Plans
+## Building
 
-The roadmap for `tinyc` includes:
-
--   **LLVM Code Generation**: Generating LLVM Intermediate Representation (IR) from the AST.
--   **LLVM Passes**: Utilizing LLVM's optimization passes to improve the generated code.
--   **LLVM Execution Engine**: Integrating an LLVM execution engine for Just-In-Time (JIT) compilation and execution.
--   **Ahead-of-Time (AOT) Compilation**: Implementing functionality to compile `tinyc` programs into standalone executables.
--   **MLIR Integration**: Exploring the use of MLIR (Multi-Level IR) for advanced compiler optimizations, especially for domain-specific or hardware-specific optimizations.
-
-## Building and Running
-
-To build the `tinyc` compiler:
+Requires LLVM 21 (`llvm21` on Arch, or set `LLVM_SYS_211_PREFIX`).
 
 ```bash
 cargo build
 ```
 
-To run the compiler (e.g., with a test file):
+## Usage
 
 ```bash
-cargo run -- <input_file.tinyc>
+# Compile to executable (output name = input without extension)
+cargo run -- program.tinyc
+
+# Compile to a specific output path
+cargo run -- program.tinyc -o myprogram
+
+# Dump unoptimized LLVM IR to stderr
+cargo run -- program.tinyc --emit-ir
 ```
 
-To run the tests:
+## Testing
 
 ```bash
 cargo test
+```
+
+## Example
+
+```c
+int main() {
+    int sum = 0;
+    int i = 0;
+    while (i < 10) {
+        sum = sum + i;
+        i = i + 1;
+    }
+    return sum;
+}
 ```
